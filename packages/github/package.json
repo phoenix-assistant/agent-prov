@@ -1,0 +1,28 @@
+{
+  "name": "@phoenixaihub/agent-prov-github",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@phoenixaihub/agent-prov-core": "*",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0",
+    "typescript": "^5.8.0",
+    "@types/node": "^22.0.0"
+  },
+  "license": "MIT"
+}

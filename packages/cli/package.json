@@ -1,0 +1,24 @@
+{
+  "name": "@phoenixaihub/agent-prov-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "agent-prov": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@phoenixaihub/agent-prov-core": "*",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0",
+    "typescript": "^5.8.0",
+    "@types/node": "^22.0.0"
+  },
+  "license": "MIT"
+}

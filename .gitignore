@@ -1,4 +1,7 @@
-node_modules/
-dist/
+node_modules
+dist
+*.tsbuildinfo
+.turbo
+.DS_Store
 *.db
-.agent-prov/
+*.sqlite

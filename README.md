@@ -1,119 +1,141 @@
 # agent-prov
 
-Git-native provenance layer for AI-generated code. Track which commits were AI-generated, detect AI code patterns via heuristics, and maintain a trust audit trail.
+> Git-native provenance layer for AI-generated code
 
-## The Problem
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-AI is writing more code than ever. But most teams have zero visibility into:
-- Which code was AI-generated vs human-written
-- Whether AI-generated code was reviewed or tested
-- Which AI model produced what
-- The overall "trust posture" of a codebase
+**Know what's AI-generated. Know what's been reviewed. Know what to trust.**
 
-`agent-prov` solves this with git hooks, heuristic detection, and a local provenance database.
+agent-prov hooks into your git workflow to automatically track which code was AI-generated, classify existing code using stylometric heuristics, and surface unreviewed AI code in PRs.
 
-## Install
+## Features
+
+- 🔍 **AI Code Detection** — Stylometric classifier using entropy analysis, naming patterns, AST structure, comment density, and repetitive pattern detection. No LLM required.
+- 🪝 **Git Hooks** — Auto-tag commits with model used, verification level, and test coverage delta
+- 🗄️ **Provenance Storage** — SQLite-backed records per file per commit
+- 🔎 **Query Engine** — Filter by AI %, review status, model, date range
+- 🏷️ **Trust Badges** — SVG badges showing AI % and review coverage
+- 🐙 **GitHub Integration** — PR comments with per-file AI analysis, status checks
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [`@phoenixaihub/agent-prov-core`](./packages/core) | Core library: classifier, storage, hooks, scanner |
+| [`@phoenixaihub/agent-prov-cli`](./packages/cli) | CLI tool for scanning, querying, reporting |
+| [`@phoenixaihub/agent-prov-github`](./packages/github) | GitHub webhook handler for PR integration |
+
+## Quick Start
 
 ```bash
-npm install -g @phoenixaihub/agent-prov
-```
+# Install CLI globally
+npm install -g @phoenixaihub/agent-prov-cli
 
-## Usage
-
-### Initialize in a repo
-
-```bash
-cd your-repo
+# Initialize in your repo
+cd your-project
 agent-prov init
-```
 
-This installs git hooks and creates a `.agent-prov/` directory (auto-added to `.gitignore`).
-
-### Scan for AI-generated code
-
-```bash
+# Scan for AI-generated code
 agent-prov scan
-agent-prov scan --path src/
-```
 
-Analyzes files using heuristic patterns:
-- Overly verbose variable names
-- Repetitive error handling
-- Import clustering patterns
-- Comment density anomalies
+# Query results
+agent-prov query --ai-generated --unreviewed
 
-### Query provenance data
-
-```bash
-agent-prov query --ai-generated --unreviewed  # Find risky code
-agent-prov query --model claude                # Filter by model
-```
-
-### Generate report
-
-```bash
+# Generate report
 agent-prov report
-agent-prov report -o provenance-report.md
+
+# Generate trust badge
+agent-prov badge
 ```
 
-### Generate trust badge
+## How Detection Works
+
+agent-prov uses **stylometric heuristics** — no AI/LLM calls needed. It analyzes:
+
+| Signal | What It Measures | AI Pattern |
+|--------|-----------------|------------|
+| Shannon Entropy | Randomness in identifier names | Higher (4.0-4.8 range) |
+| CamelCase Ratio | Naming convention consistency | Very consistent (>85%) |
+| Identifier Length | Variable name length distribution | Uniform, moderate length |
+| Comment Density | Ratio of comments to code | Higher, doc-style |
+| AST Depth | Subtree depth variance | More uniform |
+| Repetitive Patterns | Normalized line duplication | More repetitive |
+| Line Length | Code width uniformity | More consistent |
+
+Each signal contributes to a weighted score (0-100%) with confidence.
+
+## Git Hooks
+
+After `agent-prov init`, two hooks are installed:
+
+**Pre-commit:** Captures staged files and any `AGENT_PROV_MODEL` environment variable.
 
 ```bash
-agent-prov badge
-agent-prov badge -o badge.svg
+# Tell agent-prov which model you used
+AGENT_PROV_MODEL=claude-4 git commit -m "Add feature"
 ```
 
-## How It Works
+**Post-commit:** Runs the classifier on committed files and stores provenance records.
 
-### Git Hooks
+## GitHub Integration
 
-**Pre-commit:** Detects the AI model from environment variables (e.g., `ANTHROPIC_API_KEY` → Claude) and runs tests if available.
+Deploy the webhook handler to receive PR events:
 
-**Post-commit:** Records provenance metadata (model, verification status, files changed) into a local SQLite database.
+```typescript
+import { createWebhookApp } from '@phoenixaihub/agent-prov-github';
 
-### AI Detection Heuristics
+const app = createWebhookApp({
+  secret: process.env.WEBHOOK_SECRET!,
+  githubToken: process.env.GITHUB_TOKEN!,
+});
 
-The scanner uses pattern-based heuristics (no ML model required):
-
-| Signal | Weight | What it detects |
-|--------|--------|-----------------|
-| Verbose names | 25% | `userAuthenticationTokenValidationResult` |
-| Error handling | 30% | Repetitive try/catch patterns |
-| Import clustering | 15% | Alphabetically sorted, tightly clustered imports |
-| Comment density | 30% | Over-commented code (>30% comment lines) |
-
-### Architecture
-
-```
-agent-prov init
-  └─ installs .git/hooks/{pre,post}-commit
-  └─ creates .agent-prov/provenance.db (SQLite)
-
-on commit:
-  pre-commit → detect model, run tests
-  post-commit → record metadata to SQLite
-
-agent-prov scan
-  └─ walks repo files
-  └─ scores each file with heuristic analyzer
-  └─ stores results in provenance.db
-
-agent-prov query/report/badge
-  └─ reads from provenance.db
-  └─ outputs filtered views
+export default app; // Deploy to Cloudflare Workers, Vercel, etc.
 ```
 
-### Storage
+PRs get automatic comments showing:
+- Per-file AI-generated percentage
+- Review depth status
+- Lines changed
+- Trust indicators (🤖 >70% AI, 🔶 30-70%, 👤 <30%)
 
-All metadata lives in `.agent-prov/provenance.db` (SQLite):
+## CLI Reference
 
-- **commits** — hash, timestamp, model, verification level, files, AI confidence
-- **file_scans** — filepath, AI score, signal breakdown, scan timestamp
+```
+agent-prov init                          Install git hooks
+agent-prov scan [--file <path>] [--json] Scan for AI-generated code
+agent-prov query [--ai-generated]        Query provenance records
+              [--unreviewed]
+              [--model <name>]
+              [--min-ai <pct>]
+agent-prov report [--format json|md]     Generate provenance report
+agent-prov badge [-o <path>]             Generate trust badge SVG
+```
 
-## Supported Languages
+## Development
 
-File scanning works for: TypeScript, JavaScript, Python (`.ts`, `.js`, `.tsx`, `.jsx`, `.py`, `.mjs`, `.cjs`)
+```bash
+# Clone and install
+git clone https://github.com/phoenix-assistant/agent-prov.git
+cd agent-prov
+npm install
+
+# Build all packages
+npm run build
+
+# Run tests
+npm test
+```
+
+## Architecture
+
+```
+.agent-prov/
+  provenance.db        # SQLite database
+.git/hooks/
+  pre-commit           # Captures model info + staged files
+  post-commit          # Runs classifier + stores records
+```
 
 ## License
 
-MIT
+MIT © [Phoenix Assistant](https://github.com/phoenix-assistant)
